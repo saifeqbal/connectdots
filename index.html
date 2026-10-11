@@ -1,0 +1,1481 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Connect the Dots - Strategy & Puzzle Game</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Canvas Confetti -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0f9ff',
+                            100: '#e0f2fe',
+                            500: '#0ea5e9',
+                            600: '#0284c7',
+                            700: '#0369a1',
+                        },
+                        p1: { DEFAULT: '#3b82f6', dark: '#1d4ed8' },
+                        p2: { DEFAULT: '#f43f5e', dark: '#be123c' }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+        body {
+            font-family: 'Inter', sans-serif;
+            touch-action: manipulation;
+        }
+
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.75);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+        }
+
+        .dark .glass-panel {
+            background: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+        }
+
+        .active-glow-p1 {
+            box-shadow: 0 0 20px -3px rgba(59, 130, 246, 0.5);
+        }
+
+        .active-glow-p2 {
+            box-shadow: 0 0 20px -3px rgba(244, 63, 94, 0.5);
+        }
+
+        /* Prevent unwanted text select during canvas interaction */
+        canvas {
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        /* Pulse animation for hint target */
+        @keyframes targetPulse {
+            0% { transform: scale(1); opacity: 0.8; }
+            50% { transform: scale(1.6); opacity: 0.3; }
+            100% { transform: scale(1); opacity: 0.8; }
+        }
+
+        .hint-pulse {
+            animation: targetPulse 1.2s infinite ease-in-out;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 dark:bg-slate-950 text-slate-800 dark:text-slate-100 min-h-screen flex flex-col justify-between transition-colors duration-300 select-none antialiased overflow-x-hidden">
+
+    <!-- Top Navigation Header -->
+    <header class="w-full max-w-6xl mx-auto px-4 py-3 flex justify-between items-center border-b border-slate-200/80 dark:border-slate-800">
+        <div class="flex items-center space-x-3">
+            <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-sky-500 via-indigo-500 to-rose-500 flex items-center justify-center shadow-md shadow-sky-500/20">
+                <i class="fa-solid fa-circle-nodes text-white text-xl"></i>
+            </div>
+            <div>
+                <h1 class="text-xl font-black tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-sky-500 via-indigo-500 to-rose-500">
+                    DOTS STUDIO
+                </h1>
+                <p class="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 tracking-wider uppercase">Strategy & Vector Puzzle Suite</p>
+            </div>
+        </div>
+
+        <!-- Major Mode Switcher Tab -->
+        <div class="flex bg-slate-200/80 dark:bg-slate-900 p-1 rounded-2xl border border-slate-300/50 dark:border-slate-800 shadow-inner">
+            <button id="tabDotsBoxes" class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 bg-white dark:bg-slate-800 text-sky-600 dark:text-sky-400 shadow-sm flex items-center gap-2">
+                <i class="fa-solid fa-border-all"></i> <span class="hidden sm:inline">Dots & Boxes</span> Grid
+            </button>
+            <button id="tabDotToDot" class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white flex items-center gap-2">
+                <i class="fa-solid fa-route"></i> Picture <span class="hidden sm:inline">Puzzle</span>
+            </button>
+        </div>
+
+        <!-- Quick Utilities -->
+        <div class="flex items-center gap-2">
+            <button id="soundToggleBtn" title="Toggle Audio" aria-label="Toggle Audio" class="w-10 h-10 rounded-xl bg-slate-200/80 dark:bg-slate-800/80 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center justify-center transition border border-slate-300/60 dark:border-slate-700">
+                <i id="soundIcon" class="fa-solid fa-volume-high"></i>
+            </button>
+            <button id="themeToggleBtn" title="Toggle Theme" aria-label="Toggle Theme" class="w-10 h-10 rounded-xl bg-slate-200/80 dark:bg-slate-800/80 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center justify-center transition border border-slate-300/60 dark:border-slate-700">
+                <i id="themeIcon" class="fa-solid fa-moon"></i>
+            </button>
+            <button id="settingsModalBtn" title="Settings" aria-label="Settings" class="w-10 h-10 rounded-xl bg-slate-200/80 dark:bg-slate-800/80 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center justify-center transition border border-slate-300/60 dark:border-slate-700">
+                <i class="fa-solid fa-sliders"></i>
+            </button>
+        </div>
+    </header>
+
+    <main class="w-full max-w-6xl mx-auto px-4 py-4 flex-1 flex flex-col items-center justify-center space-y-4">
+
+        <!-- ================= MODE 1: DOTS AND BOXES CONTROLS ================= -->
+        <div id="controlsDotsBoxes" class="w-full max-w-3xl flex flex-wrap gap-2 justify-between items-center glass-panel p-2.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm">
+            <!-- Mode Toggle (2P vs AI) -->
+            <div class="flex bg-slate-200/80 dark:bg-slate-900 p-1 rounded-xl text-xs font-semibold">
+                <button id="modePvP" class="px-3 py-1.5 rounded-lg transition bg-sky-600 text-white shadow-sm flex items-center gap-1.5 font-bold">
+                    <i class="fa-solid fa-user-group"></i> 2 Players
+                </button>
+                <button id="modeAI" class="px-3 py-1.5 rounded-lg transition text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white flex items-center gap-1.5 font-bold">
+                    <i class="fa-solid fa-robot"></i> vs AI
+                </button>
+            </div>
+
+            <!-- AI Difficulty Selection -->
+            <div id="aiDiffGroup" class="hidden flex items-center gap-1 bg-slate-200/80 dark:bg-slate-900 p-1 rounded-xl text-xs font-semibold">
+                <span class="text-[10px] uppercase text-slate-400 px-1 font-bold">AI:</span>
+                <button id="diffEasy" class="px-2.5 py-1 rounded-lg text-slate-600 dark:text-slate-400 hover:text-white transition">Easy</button>
+                <button id="diffMedium" class="px-2.5 py-1 rounded-lg text-slate-600 dark:text-slate-400 hover:text-white transition">Medium</button>
+                <button id="diffHard" class="px-2.5 py-1 bg-purple-600 text-white rounded-lg transition font-bold shadow-sm">Hard</button>
+            </div>
+
+            <!-- Grid Size Selector -->
+            <div class="flex items-center gap-1.5 text-xs font-semibold">
+                <span class="text-[11px] font-bold text-slate-400 uppercase hidden sm:inline">Grid:</span>
+                <div id="gridSizeSelectors" class="flex bg-slate-200/80 dark:bg-slate-900 p-1 rounded-xl">
+                    <button data-grid="3" class="px-2.5 py-1 rounded-lg text-slate-600 dark:text-slate-400 hover:text-white transition">3x3</button>
+                    <button data-grid="4" class="px-2.5 py-1 bg-sky-600 text-white rounded-lg shadow-sm transition font-bold">4x4</button>
+                    <button data-grid="5" class="px-2.5 py-1 rounded-lg text-slate-600 dark:text-slate-400 hover:text-white transition">5x5</button>
+                    <button data-grid="6" class="px-2.5 py-1 rounded-lg text-slate-600 dark:text-slate-400 hover:text-white transition">6x6</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= MODE 2: PICTURE PUZZLE CONTROLS ================= -->
+        <div id="controlsDotToDot" class="hidden w-full max-w-3xl flex flex-wrap gap-2 justify-between items-center glass-panel p-2.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm">
+            <!-- Category/Artwork Selector -->
+            <div class="flex items-center gap-2">
+                <span class="text-xs font-extrabold uppercase text-slate-400 tracking-wider"><i class="fa-solid fa-palette text-sky-500"></i> Artwork:</span>
+                <select id="puzzleSelect" class="bg-slate-200 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs font-bold rounded-xl px-3 py-1.5 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500 cursor-pointer">
+                    <!-- Dynamic Options Populated in JS -->
+                </select>
+            </div>
+
+            <!-- Puzzle Aux Helpers -->
+            <div class="flex items-center gap-2">
+                <button id="hintBtn" class="px-3 py-1.5 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 rounded-xl text-xs font-bold transition flex items-center gap-1.5 border border-amber-500/30">
+                    <i class="fa-solid fa-lightbulb"></i> Hint (<span id="hintCount">3</span>)
+                </button>
+                <button id="autoConnectBtn" class="px-3 py-1.5 bg-slate-200 dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:text-sky-500 rounded-xl text-xs font-bold transition flex items-center gap-1.5 border border-slate-300 dark:border-slate-700">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i> Auto-Snap: <span id="autoSnapState">OFF</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Scoreboard Bar for Mode 1 -->
+        <div id="scoreboardDotsBoxes" class="w-full max-w-3xl grid grid-cols-3 gap-3">
+            <!-- Player 1 Box -->
+            <div id="cardP1" class="glass-panel border-2 border-sky-500/80 rounded-2xl p-3 shadow-md flex flex-col items-center justify-center transition-all active-glow-p1">
+                <div class="flex items-center gap-1.5">
+                    <span id="badgeP1" class="w-3 h-3 rounded-full bg-sky-500 shadow-sm"></span>
+                    <span id="nameP1" class="text-xs sm:text-sm font-bold text-sky-600 dark:text-sky-400 truncate max-w-[100px]">Player 1</span>
+                </div>
+                <div id="scoreP1" class="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white mt-0.5">0</div>
+            </div>
+
+            <!-- Status Banner -->
+            <div class="glass-panel border border-slate-200/80 dark:border-slate-800 rounded-2xl p-2.5 shadow-sm flex flex-col items-center justify-center text-center">
+                <span class="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Current Turn</span>
+                <div id="turnBadge" class="flex items-center gap-1.5 font-bold text-xs sm:text-sm text-sky-600 dark:text-sky-400 mt-1">
+                    <i class="fa-solid fa-pen-nib"></i>
+                    <span id="turnText">Player 1</span>
+                </div>
+                <span id="remainingBoxesText" class="text-[10px] font-semibold text-slate-400 mt-1">9 boxes remaining</span>
+            </div>
+
+            <!-- Player 2 Box -->
+            <div id="cardP2" class="glass-panel border border-slate-200/80 dark:border-slate-800 rounded-2xl p-3 shadow-sm flex flex-col items-center justify-center transition-all">
+                <div class="flex items-center gap-1.5">
+                    <span id="badgeP2" class="w-3 h-3 rounded-full bg-rose-500 shadow-sm"></span>
+                    <span id="nameP2" class="text-xs sm:text-sm font-bold text-rose-600 dark:text-rose-400 truncate max-w-[100px]">Player 2</span>
+                </div>
+                <div id="scoreP2" class="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white mt-0.5">0</div>
+            </div>
+        </div>
+
+        <!-- Scoreboard / Progress Bar for Mode 2 -->
+        <div id="scoreboardDotToDot" class="hidden w-full max-w-3xl glass-panel border border-slate-200/80 dark:border-slate-800 rounded-2xl p-3 shadow-sm flex items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-sky-500/10 text-sky-500 flex items-center justify-center font-extrabold text-lg">
+                    <i class="fa-solid fa-flag-checkered"></i>
+                </div>
+                <div>
+                    <h3 id="puzzleTitle" class="text-sm font-extrabold text-slate-900 dark:text-white">Majestic Cat</h3>
+                    <p id="puzzleCategory" class="text-xs text-slate-400">Animals • <span id="totalDotsCount">24</span> Dots</p>
+                </div>
+            </div>
+
+            <!-- Progress Indicator -->
+            <div class="flex-1 max-w-xs">
+                <div class="flex justify-between text-xs font-bold mb-1">
+                    <span class="text-slate-400">Progress</span>
+                    <span id="progressPercent" class="text-sky-500">0%</span>
+                </div>
+                <div class="w-full bg-slate-200 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden">
+                    <div id="progressBar" class="bg-gradient-to-r from-sky-500 to-indigo-500 h-full w-0 transition-all duration-300"></div>
+                </div>
+            </div>
+
+            <!-- Next Target Indicator -->
+            <div class="bg-slate-200/80 dark:bg-slate-900 px-3 py-1.5 rounded-xl text-center min-w-[75px]">
+                <span class="text-[9px] uppercase font-bold text-slate-400 block">Next Dot</span>
+                <span id="nextDotNumber" class="text-base font-black text-sky-500">#1</span>
+            </div>
+        </div>
+
+        <!-- Interactive Canvas Viewport -->
+        <div class="relative w-full max-w-[500px] aspect-square bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-2 shadow-2xl flex items-center justify-center overflow-hidden group">
+            
+            <canvas id="gameCanvas" class="w-full h-full cursor-pointer rounded-2xl touch-none"></canvas>
+
+            <!-- Zoom & Pan Overlay Toolbar for Picture Mode -->
+            <div id="canvasZoomOverlay" class="hidden absolute bottom-4 right-4 flex items-center gap-1 bg-slate-900/80 backdrop-blur-md p-1.5 rounded-xl border border-slate-700/80 text-white text-xs">
+                <button id="zoomOutBtn" class="w-8 h-8 hover:bg-slate-800 rounded-lg flex items-center justify-center transition" title="Zoom Out"><i class="fa-solid fa-minus"></i></button>
+                <button id="zoomResetBtn" class="px-2 h-8 hover:bg-slate-800 rounded-lg flex items-center justify-center transition font-bold" title="Reset View"><span id="zoomLevelText">100%</span></button>
+                <button id="zoomInBtn" class="w-8 h-8 hover:bg-slate-800 rounded-lg flex items-center justify-center transition" title="Zoom In"><i class="fa-solid fa-plus"></i></button>
+            </div>
+        </div>
+
+        <!-- Bottom Action Bar (Undo, Reset, Clear) -->
+        <div class="w-full max-w-[500px] flex gap-3">
+            <button id="undoBtn" disabled class="flex-1 py-2.5 px-4 bg-slate-200/80 dark:bg-slate-800/80 hover:bg-slate-300 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed text-slate-700 dark:text-slate-200 font-bold text-xs sm:text-sm rounded-xl transition border border-slate-300/60 dark:border-slate-700 flex items-center justify-center gap-2 shadow-sm">
+                <i class="fa-solid fa-rotate-left"></i> Undo Move
+            </button>
+            <button id="restartBtn" class="flex-1 py-2.5 px-4 bg-slate-200/80 dark:bg-slate-800/80 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs sm:text-sm rounded-xl transition border border-slate-300/60 dark:border-slate-700 flex items-center justify-center gap-2 shadow-sm">
+                <i class="fa-solid fa-arrows-rotate"></i> Reset Canvas
+            </button>
+        </div>
+
+    </main>
+
+    <!-- Settings Overlay Modal -->
+    <div id="settingsModal" class="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none transition-opacity duration-300">
+        <div id="settingsContent" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-sm p-6 shadow-2xl space-y-5 transform scale-95 transition-transform duration-300">
+            <div class="flex justify-between items-center border-b border-slate-200 dark:border-slate-800 pb-3">
+                <h3 class="text-lg font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
+                    <i class="fa-solid fa-sliders text-sky-500"></i> Settings
+                </h3>
+                <button id="closeSettingsBtn" class="text-slate-400 hover:text-slate-600 dark:hover:text-white text-xl">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <!-- Settings Fields -->
+            <div class="space-y-4">
+                <div>
+                    <label class="text-xs font-bold uppercase text-slate-400 tracking-wider block mb-1.5">Player 1 Customization</label>
+                    <div class="flex items-center gap-2">
+                        <input type="color" id="colorP1" value="#3b82f6" class="w-9 h-9 rounded-xl border-0 cursor-pointer bg-transparent">
+                        <input type="text" id="inputP1" value="Player 1" class="flex-1 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-800 dark:text-slate-100 font-semibold focus:outline-none focus:ring-2 focus:ring-sky-500" placeholder="P1 Name">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="text-xs font-bold uppercase text-slate-400 tracking-wider block mb-1.5">Player 2 / AI Customization</label>
+                    <div class="flex items-center gap-2">
+                        <input type="color" id="colorP2" value="#f43f5e" class="w-9 h-9 rounded-xl border-0 cursor-pointer bg-transparent">
+                        <input type="text" id="inputP2" value="Player 2" class="flex-1 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-800 dark:text-slate-100 font-semibold focus:outline-none focus:ring-2 focus:ring-rose-500" placeholder="P2 Name">
+                    </div>
+                </div>
+            </div>
+
+            <button id="saveSettingsBtn" class="w-full py-3 bg-gradient-to-r from-sky-500 via-indigo-500 to-rose-500 text-white font-extrabold rounded-xl shadow-md hover:brightness-105 active:scale-95 transition">
+                Apply Preferences
+            </button>
+        </div>
+    </div>
+
+    <!-- Victory / Puzzle Solved Modal -->
+    <div id="resultModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none tratransition-opacity duration-300">
+        <div id="resultContent" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-sm p-6 text-center shadow-2xl space-y-4 transform scale-90 transition-transform duration-300">
+            <div id="resultIcon" class="w-16 h-16 rounded-full mx-auto flex items-center justify-center text-3xl shadow-xl bg-sky-500/20 text-sky-500">
+                <i class="fa-solid fa-trophy"></i>
+            </div>
+            <div>
+                <h2 id="resultTitle" class="text-2xl font-black text-slate-900 dark:text-white">Player 1 Wins!</h2>
+                <p id="resultSubtext" class="text-xs text-slate-400 mt-1">Conquered most boxes on the grid!</p>
+            </div>
+            <div class="pt-2">
+                <button id="modalPlayAgainBtn" class="w-full py-3 bg-gradient-to-r from-sky-500 via-indigo-500 to-rose-500 text-white font-extrabold rounded-xl shadow-lg hover:brightness-110 active:scale-95 transition">
+                    Play Again
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="w-full max-w-6xl mx-auto text-center py-3 text-xs text-slate-400 border-t border-slate-200/80 dark:border-slate-800">
+        Dots Studio • Classic Grid Strategy & Vector Puzzle Suite
+    </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+
+            // =========================================================================
+            // AUDIO SYNTHESIS ENGINE (Web Audio API)
+            // =========================================================================
+            let soundEnabled = true;
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            let audioCtx = null;
+
+            function playSound(type) {
+                if (!soundEnabled) return;
+                try {
+                    if (!audioCtx) audioCtx = new AudioContext();
+                    if (audioCtx.state === 'suspended') audioCtx.resume();
+
+                    const now = audioCtx.currentTime;
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+
+                    if (type === 'line') {
+                        osc.type = 'sine';
+                        osc.frequency.setValueAtTime(350, now);
+                        osc.frequency.exponentialRampToValueAtTime(520, now + 0.05);
+                        gain.gain.setValueAtTime(0.12, now);
+                        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.05);
+                        osc.start(now);
+                        osc.stop(now + 0.05);
+                    } else if (type === 'box') {
+                        osc.type = 'triangle';
+                        osc.frequency.setValueAtTime(523.25, now); // C5
+                        osc.frequency.exponentialRampToValueAtTime(659.25, now + 0.12); // E5
+                        gain.gain.setValueAtTime(0.2, now);
+                        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.12);
+                        osc.start(now);
+                        osc.stop(now + 0.12);
+                    } else if (type === 'dotConnect') {
+                        osc.type = 'sine';
+                        osc.frequency.setValueAtTime(440, now);
+                        osc.frequency.exponentialRampToValueAtTime(880, now + 0.08);
+                        gain.gain.setValueAtTime(0.15, now);
+                        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
+                        osc.start(now);
+                        osc.stop(now + 0.08);
+                    } else if (type === 'wrongDot') {
+                        osc.type = 'sawtooth';
+                        osc.frequency.setValueAtTime(220, now);
+                        osc.frequency.linearRampToValueAtTime(140, now + 0.1);
+                        gain.gain.setValueAtTime(0.12, now);
+                        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+                        osc.start(now);
+                        osc.stop(now + 0.1);
+                    } else if (type === 'undo') {
+                        osc.type = 'sine';
+                        osc.frequency.setValueAtTime(300, now);
+                        osc.frequency.linearRampToValueAtTime(180, now + 0.08);
+                        gain.gain.setValueAtTime(0.1, now);
+                        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
+                        osc.start(now);
+                        osc.stop(now + 0.08);
+                    } else if (type === 'win') {
+                        [523.25, 659.25, 783.99, 1046.50].forEach((freq, i) => {
+                            const o = audioCtx.createOscillator();
+                            const g = audioCtx.createGain();
+                            o.type = 'sine';
+                            o.frequency.setValueAtTime(freq, now + i * 0.08);
+                            o.connect(g);
+                            g.connect(audioCtx.destination);
+                            g.gain.setValueAtTime(0.12, now + i * 0.08);
+                            g.gain.exponentialRampToValueAtTime(0.001, now + i * 0.08 + 0.25);
+                            o.start(now + i * 0.08);
+                            o.stop(now + i * 0.08 + 0.25);
+                        });
+                    }
+                } catch (e) {
+                    console.warn('Audio playback error:', e);
+                }
+            }
+
+            // =========================================================================
+            // PICTURE PUZZLE ARTWORK VECTOR DATASETS
+            // =========================================================================
+            const PICTURE_PUZZLES = [
+                {
+                    id: 'cat',
+                    name: 'Playful Kitten',
+                    category: 'Animals',
+                    fillColor: 'rgba(251, 146, 60, 0.35)',
+                    strokeColor: '#f97316',
+                    points: [
+                        {x: 200, y: 80},  {x: 240, y: 130}, {x: 290, y: 110}, {x: 270, y: 160},
+                        {x: 310, y: 220}, {x: 320, y: 280}, {x: 290, y: 340}, {x: 230, y: 360},
+                        {x: 250, y: 390}, {x: 220, y: 400}, {x: 200, y: 370}, {x: 180, y: 400},
+                        {x: 150, y: 390}, {x: 170, y: 360}, {x: 110, y: 340}, {x: 80, y: 280},
+                        {x: 90, y: 220},  {x: 130, y: 160}, {x: 110, y: 110}, {x: 160, y: 130}
+                    ]
+                },
+                {
+                    id: 'rocket',
+                    name: 'Space Rocket',
+                    category: 'Space',
+                    fillColor: 'rgba(56, 189, 248, 0.35)',
+                    strokeColor: '#0284c7',
+                    points: [
+                        {x: 200, y: 60},  {x: 240, y: 130}, {x: 250, y: 230}, {x: 290, y: 300},
+                        {x: 250, y: 290}, {x: 240, y: 340}, {x: 210, y: 340}, {x: 200, y: 380},
+                        {x: 190, y: 340}, {x: 160, y: 340}, {x: 150, y: 290}, {x: 110, y: 300},
+                        {x: 150, y: 230}, {x: 160, y: 130}
+                    ]
+                },
+                {
+                    id: 'star',
+                    name: 'Magic Star',
+                    category: 'Fantasy',
+                    fillColor: 'rgba(250, 204, 21, 0.35)',
+                    strokeColor: '#eab308',
+                    points: [
+                        {x: 200, y: 50},  {x: 240, y: 150}, {x: 350, y: 160}, {x: 265, y: 230},
+                        {x: 300, y: 340}, {x: 200, y: 275}, {x: 100, y: 340}, {x: 135, y: 230},
+                        {x: 50, y: 160},  {x: 160, y: 150}
+                    ]
+                },
+                {
+                    id: 'butterfly',
+                    name: 'Monarch Butterfly',
+                    category: 'Animals',
+                    fillColor: 'rgba(236, 72, 153, 0.35)',
+                    strokeColor: '#db2777',
+                    points: [
+                        {x: 200, y: 100}, {x: 210, y: 140}, {x: 290, y: 80},  {x: 350, y: 150},
+                        {x: 310, y: 230}, {x: 340, y: 310}, {x: 260, y: 330}, {x: 210, y: 260},
+                        {x: 200, y: 340}, {x: 190, y: 260}, {x: 140, y: 330}, {x: 60, y: 310},
+                        {x: 90, y: 230},  {x: 50, y: 150},  {x: 110, y: 80},  {x: 190, y: 140}
+                    ]
+                },
+                {
+                    id: 'landmark',
+                    name: 'Ancient Pyramid',
+                    category: 'Landmarks',
+                    fillColor: 'rgba(245, 158, 11, 0.35)',
+                    strokeColor: '#d97706',
+                    points: [
+                        {x: 200, y: 70},  {x: 350, y: 320}, {x: 210, y: 350}, {x: 50, y: 320},
+                        {x: 200, y: 70},  {x: 210, y: 350}
+                    ]
+                }
+            ];
+
+            // =========================================================================
+            // STATE MANAGEMENT
+            // =========================================================================
+            let currentTab = 'DotsBoxes'; // 'DotsBoxes' or 'DotToDot'
+
+            // Mode 1: Dots and Boxes State
+            let numDots = 4; // Grid dot size
+            let gameMode = 'PvP'; // 'PvP' or 'AI'
+            let aiDifficulty = 'Hard'; // 'Easy', 'Medium', 'Hard'
+            let currentPlayer = 1;
+
+            let players = {
+                1: { name: 'Player 1', color: '#3b82f6', score: 0 },
+                2: { name: 'Player 2', color: '#f43f5e', score: 0 }
+            };
+
+            let hLines = [];
+            let vLines = [];
+            let boxes = [];
+            let moveHistory = [];
+
+            // Mode 2: Picture Dot-To-Dot State
+            let currentPuzzleIndex = 0;
+            let connectedDotsCount = 0; // Index of last connected dot
+            let puzzleCompleted = false;
+            let hintsRemaining = 3;
+            let autoSnap = false;
+            let activeHintDot = null;
+
+            // Zoom & Pan Engine State
+            let zoomLevel = 1.0;
+            let panOffset = { x: 0, y: 0 };
+            let isPanning = false;
+            let startPan = { x: 0, y: 0 };
+
+            // Canvas Engine References
+            const canvas = document.getElementById('gameCanvas');
+            const ctx = canvas.getContext('2d');
+            let canvasSize = 400;
+            let cellSize = 0;
+            let padding = 0;
+            let dotRadius = 6;
+            let hoverLine = null;
+
+            // DOM Elements
+            const tabDotsBoxes = document.getElementById('tabDotsBoxes');
+            const tabDotToDot = document.getElementById('tabDotToDot');
+            const controlsDotsBoxes = document.getElementById('controlsDotsBoxes');
+            const controlsDotToDot = document.getElementById('controlsDotToDot');
+            const scoreboardDotsBoxes = document.getElementById('scoreboardDotsBoxes');
+            const scoreboardDotToDot = document.getElementById('scoreboardDotToDot');
+            const canvasZoomOverlay = document.getElementById('canvasZoomOverlay');
+
+            const modePvPBtn = document.getElementById('modePvP');
+            const modeAIBtn = document.getElementById('modeAI');
+            const aiDiffGroup = document.getElementById('aiDiffGroup');
+            const diffEasyBtn = document.getElementById('diffEasy');
+            const diffMediumBtn = document.getElementById('diffMedium');
+            const diffHardBtn = document.getElementById('diffHard');
+
+            const cardP1 = document.getElementById('cardP1');
+            const cardP2 = document.getElementById('cardP2');
+            const nameP1 = document.getElementById('nameP1');
+            const nameP2 = document.getElementById('nameP2');
+            const badgeP1 = document.getElementById('badgeP1');
+            const badgeP2 = document.getElementById('badgeP2');
+            const scoreP1 = document.getElementById('scoreP1');
+            const scoreP2 = document.getElementById('scoreP2');
+            const turnText = document.getElementById('turnText');
+            const turnBadge = document.getElementById('turnBadge');
+            const remainingBoxesText = document.getElementById('remainingBoxesText');
+
+            const puzzleSelect = document.getElementById('puzzleSelect');
+            const puzzleTitle = document.getElementById('puzzleTitle');
+            const puzzleCategory = document.getElementById('puzzleCategory');
+            const totalDotsCount = document.getElementById('totalDotsCount');
+            const progressBar = document.getElementById('progressBar');
+            const progressPercent = document.getElementById('progressPercent');
+            const nextDotNumber = document.getElementById('nextDotNumber');
+            const hintBtn = document.getElementById('hintBtn');
+            const hintCount = document.getElementById('hintCount');
+            const autoConnectBtn = document.getElementById('autoConnectBtn');
+            const autoSnapState = document.getElementById('autoSnapState');
+
+            const zoomInBtn = document.getElementById('zoomInBtn');
+            const zoomOutBtn = document.getElementById('zoomOutBtn');
+            const zoomResetBtn = document.getElementById('zoomResetBtn');
+            const zoomLevelText = document.getElementById('zoomLevelText');
+
+            const soundToggleBtn = document.getElementById('soundToggleBtn');
+            const soundIcon = document.getElementById('soundIcon');
+            const themeToggleBtn = document.getElementById('themeToggleBtn');
+            const themeIcon = document.getElementById('themeIcon');
+            const settingsModalBtn = document.getElementById('settingsModalBtn');
+
+            const settingsModal = document.getElementById('settingsModal');
+            const settingsContent = document.getElementById('settingsContent');
+            const closeSettingsBtn = document.getElementById('closeSettingsBtn');
+            const saveSettingsBtn = document.getElementById('saveSettingsBtn');
+            const inputP1 = document.getElementById('inputP1');
+            const inputP2 = document.getElementById('inputP2');
+            const colorP1 = document.getElementById('colorP1');
+            const colorP2 = document.getElementById('colorP2');
+
+            const resultModal = document.getElementById('resultModal');
+            const resultContent = document.getElementById('resultContent');
+            const resultTitle = document.getElementById('resultTitle');
+            const resultSubtext = document.getElementById('resultSubtext');
+            const resultIcon = document.getElementById('resultIcon');
+            const modalPlayAgainBtn = document.getElementById('modalPlayAgainBtn');
+
+            const undoBtn = document.getElementById('undoBtn');
+            const restartBtn = document.getElementById('restartBtn');
+
+            // =========================================================================
+            // CANVAS RESIZING & LAYOUT
+            // =========================================================================
+            function resizeCanvas() {
+                const container = canvas.parentElement;
+                const rect = container.getBoundingClientRect();
+                const dpr = window.devicePixelRatio || 1;
+
+                canvasSize = rect.width;
+                canvas.width = canvasSize * dpr;
+                canvas.height = canvasSize * dpr;
+                ctx.scale(dpr, dpr);
+
+                padding = canvasSize * 0.12;
+                cellSize = (canvasSize - padding * 2) / (numDots - 1);
+                dotRadius = Math.max(4, Math.min(8, cellSize * 0.08));
+
+                render();
+            }
+
+            // =========================================================================
+            // TAB & MODE INITIALIZATION
+            // =========================================================================
+            function initPuzzleOptions() {
+                puzzleSelect.innerHTML = '';
+                PICTURE_PUZZLES.forEach((p, idx) => {
+                    const opt = document.createElement('option');
+                    opt.value = idx;
+                    opt.textContent = `${p.name} (${p.points.length} Dots)`;
+                    puzzleSelect.appendChild(opt);
+                });
+            }
+
+            function switchTab(newTab) {
+                currentTab = newTab;
+                if (currentTab === 'DotsBoxes') {
+                    tabDotsBoxes.className = "px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 bg-white dark:bg-slate-800 text-sky-600 dark:text-sky-400 shadow-sm flex items-center gap-2";
+                    tabDotToDot.className = "px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white flex items-center gap-2";
+
+                    controlsDotsBoxes.classList.remove('hidden');
+                    controlsDotToDot.classList.add('hidden');
+                    scoreboardDotsBoxes.classList.remove('hidden');
+                    scoreboardDotToDot.classList.add('hidden');
+                    canvasZoomOverlay.classList.add('hidden');
+
+                    initDotsBoxes();
+                } else {
+                    tabDotToDot.className = "px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 bg-white dark:bg-slate-800 text-sky-600 dark:text-sky-400 shadow-sm flex items-center gap-2";
+                    tabDotsBoxes.className = "px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white flex items-center gap-2";
+
+                    controlsDotToDot.classList.remove('hidden');
+                    controlsDotsBoxes.classList.add('hidden');
+                    scoreboardDotToDot.classList.remove('hidden');
+                    scoreboardDotsBoxes.classList.add('hidden');
+                    canvasZoomOverlay.classList.remove('hidden');
+
+                    initDotToDot();
+                }
+            }
+
+            // =========================================================================
+            // MODE 1: DOTS & BOXES ENGINE
+            // =========================================================================
+            function initDotsBoxes() {
+                hLines = Array.from({ length: numDots }, () => Array(numDots - 1).fill(0));
+                vLines = Array.from({ length: numDots - 1 }, () => Array(numDots).fill(0));
+                boxes = Array.from({ length: numDots - 1 }, () =>
+                    Array.from({ length: numDots - 1 }, () => ({ owner: 0, scale: 0 }))
+                );
+
+                players[1].score = 0;
+                players[2].score = 0;
+                currentPlayer = 1;
+                moveHistory = [];
+
+                updateUI();
+                resizeCanvas();
+            }
+
+            function makeMove(type, r, c) {
+                if (type === 'H' ? hLines[r][c] !== 0 : vLines[r][c] !== 0) return;
+
+                if (type === 'H') hLines[r][c] = currentPlayer;
+                else vLines[r][c] = currentPlayer;
+
+                playSound('line');
+
+                const captured = checkCompletedBoxes(type, r, c, currentPlayer);
+
+                moveHistory.push({
+                    type, r, c,
+                    player: currentPlayer,
+                    captured
+                });
+
+                if (captured.length > 0) {
+                    players[currentPlayer].score += captured.length;
+                    playSound('box');
+                    captured.forEach(b => {
+                        boxes[b.r][b.c].owner = currentPlayer;
+                        boxes[b.r][b.c].scale = 0;
+                    });
+                } else {
+                    currentPlayer = currentPlayer === 1 ? 2 : 1;
+                }
+
+                hoverLine = null;
+                updateUI();
+                renderAnimation();
+
+                const totalBoxes = (numDots - 1) ** 2;
+                if (players[1].score + players[2].score === totalBoxes) {
+                    setTimeout(endDotsBoxesGame, 400);
+                    return;
+                }
+
+                if (gameMode === 'AI' && currentPlayer === 2) {
+                    setTimeout(triggerAIMove, 450);
+                }
+            }
+
+            function checkCompletedBoxes(type, r, c, player) {
+                const captured = [];
+                const max = numDots - 1;
+
+                if (type === 'H') {
+                    if (r > 0 && hLines[r - 1][c] && vLines[r - 1][c] && vLines[r - 1][c + 1]) {
+                        captured.push({ r: r - 1, c });
+                    }
+                    if (r < max && hLines[r + 1][c] && vLines[r][c] && vLines[r][c + 1]) {
+                        captured.push({ r, c });
+                    }
+                } else {
+                    if (c > 0 && vLines[r][c - 1] && hLines[r][c - 1] && hLines[r + 1][c - 1]) {
+                        captured.push({ r, c: c - 1 });
+                    }
+                    if (c < max && vLines[r][c + 1] && hLines[r][c] && hLines[r + 1][c]) {
+                        captured.push({ r, c });
+                    }
+                }
+                return captured;
+            }
+
+            function triggerAIMove() {
+                const available = getAvailableMoves();
+                if (available.length === 0) return;
+
+                let choice;
+                if (aiDifficulty === 'Easy') {
+                    choice = available[Math.floor(Math.random() * available.length)];
+                } else if (aiDifficulty === 'Medium') {
+                    choice = findScoringMove(available) || findSafeMove(available) || available[Math.floor(Math.random() * available.length)];
+                } else {
+                    choice = findScoringMove(available) || findSafeMove(available) || available[Math.floor(Math.random() * available.length)];
+                }
+
+                if (choice) makeMove(choice.type, choice.r, choice.c);
+            }
+
+            function getAvailableMoves() {
+                const moves = [];
+                for (let r = 0; r < numDots; r++) {
+                    for (let c = 0; c < numDots - 1; c++) {
+                        if (!hLines[r][c]) moves.push({ type: 'H', r, c });
+                    }
+                }
+                for (let r = 0; r < numDots - 1; r++) {
+                    for (let c = 0; c < numDots; c++) {
+                        if (!vLines[r][c]) moves.push({ type: 'V', r, c });
+                    }
+                }
+                return moves;
+            }
+
+            function findScoringMove(moves) {
+                for (let m of moves) {
+                    if (checkCompletedBoxes(m.type, m.r, m.c, 2).length > 0) return m;
+                }
+                return null;
+            }
+
+            function findSafeMove(moves) {
+                return moves.find(m => {
+                    if (m.type === 'H') hLines[m.r][m.c] = 2;
+                    else vLines[m.r][m.c] = 2;
+
+                    let causesCapture = false;
+                    const max = numDots - 1;
+                    for (let br = 0; br < max; br++) {
+                        for (let bc = 0; bc < max; bc++) {
+                            let count = (hLines[br][bc]?1:0) + (hLines[br+1][bc]?1:0) + (vLines[br][bc]?1:0) + (vLines[br][bc+1]?1:0);
+                            if (count === 3) causesCapture = true;
+                        }
+                    }
+
+                    if (m.type === 'H') hLines[m.r][m.c] = 0;
+                    else vLines[m.r][m.c] = 0;
+
+                    return !causesCapture;
+                });
+            }
+
+            function undoDotsBoxesMove() {
+                if (moveHistory.length === 0) return;
+                const last = moveHistory.pop();
+
+                if (last.type === 'H') hLines[last.r][last.c] = 0;
+                else vLines[last.r][last.c] = 0;
+
+                if (last.captured.length > 0) {
+                    players[last.player].score -= last.captured.length;
+                    last.captured.forEach(b => {
+                        boxes[b.r][b.c].owner = 0;
+                        boxes[b.r][b.c].scale = 0;
+                    });
+                }
+
+                currentPlayer = last.player;
+
+                if (gameMode === 'AI' && currentPlayer === 2 && moveHistory.length > 0) {
+                    undoDotsBoxesMove();
+                    return;
+                }
+
+                playSound('undo');
+                updateUI();
+                render();
+            }
+
+            function endDotsBoxesGame() {
+                playSound('win');
+                let title, subtext, iconClass;
+
+                if (players[1].score > players[2].score) {
+                    title = `${players[1].name} Wins!`;
+                    subtext = `Dominated with ${players[1].score} captured boxes!`;
+                    iconClass = 'bg-sky-500/20 text-sky-500';
+                } else if (players[2].score > players[1].score) {
+                    title = `${players[2].name} Wins!`;
+                    subtext = `Dominated with ${players[2].score} captured boxes!`;
+                    iconClass = 'bg-rose-500/20 text-rose-500';
+                } else {
+                    title = "It's a Tie!";
+                    subtext = "Flawless strategic balance by both players!";
+                    iconClass = 'bg-purple-500/20 text-purple-500';
+                }
+
+                resultTitle.innerText = title;
+                resultSubtext.innerText = subtext;
+                resultIcon.className = `w-16 h-16 rounded-full mx-auto flex items-center justify-center text-3xl shadow-xl ${iconClass}`;
+
+                resultModal.classList.remove('opacity-0', 'pointer-events-none');
+                resultContent.classList.remove('scale-90');
+                resultContent.classList.add('scale-100');
+
+                if (typeof confetti === 'function') {
+                    confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
+                }
+            }
+
+            // =========================================================================
+            // MODE 2: PICTURE DOT-TO-DOT PUZZLE ENGINE
+            // =========================================================================
+            function initDotToDot() {
+                connectedDotsCount = 0;
+                puzzleCompleted = false;
+                hintsRemaining = 3;
+                activeHintDot = null;
+                zoomLevel = 1.0;
+                panOffset = { x: 0, y: 0 };
+
+                updateDotToDotUI();
+                resizeCanvas();
+            }
+
+            function handleDotToDotClick(x, y) {
+                if (puzzleCompleted) return;
+
+                const puzzle = PICTURE_PUZZLES[currentPuzzleIndex];
+                const targetIdx = connectedDotsCount;
+                if (targetIdx >= puzzle.points.length) return;
+
+                const targetPt = transformPoint(puzzle.points[targetIdx]);
+                const dist = Math.hypot(x - targetPt.x, y - targetPt.y);
+
+                const snapDist = autoSnap ? 45 : 28;
+
+                if (dist <= snapDist) {
+                    // Correct Dot Clicked
+                    connectedDotsCount++;
+                    activeHintDot = null;
+                    playSound('dotConnect');
+
+                    if (connectedDotsCount >= puzzle.points.length) {
+                        puzzleCompleted = true;
+                        setTimeout(endPicturePuzzle, 500);
+                    }
+                    updateDotToDotUI();
+                    render();
+                } else {
+                    // Missed target
+                    playSound('wrongDot');
+                }
+            }
+
+            function endPicturePuzzle() {
+                playSound('win');
+                const puzzle = PICTURE_PUZZLES[currentPuzzleIndex];
+
+                resultTitle.innerText = "Artwork Revealed!";
+                resultSubtext.innerText = `You completed '${puzzle.name}' with ${puzzle.points.length} points!`;
+                resultIcon.className = 'w-16 h-16 rounded-full mx-auto flex items-center justify-center text-3xl shadow-xl bg-amber-500/20 text-amber-500';
+
+                resultModal.classList.remove('opacity-0', 'pointer-events-none');
+                resultContent.classList.remove('scale-90');
+                resultContent.classList.add('scale-100');
+
+                if (typeof confetti === 'function') {
+                    confetti({ particleCount: 150, spread: 90, origin: { y: 0.6 } });
+                }
+            }
+
+            function updateDotToDotUI() {
+                const puzzle = PICTURE_PUZZLES[currentPuzzleIndex];
+                puzzleTitle.innerText = puzzle.name;
+                puzzleCategory.innerText = `${puzzle.category} • ${puzzle.points.length} Dots`;
+                totalDotsCount.innerText = puzzle.points.length;
+
+                const percent = Math.round((connectedDotsCount / puzzle.points.length) * 100);
+                progressPercent.innerText = `${percent}%`;
+                progressBar.style.width = `${percent}%`;
+
+                if (connectedDotsCount < puzzle.points.length) {
+                    nextDotNumber.innerText = `#${connectedDotsCount + 1}`;
+                } else {
+                    nextDotNumber.innerText = 'DONE';
+                }
+
+                hintCount.innerText = hintsRemaining;
+                hintBtn.disabled = hintsRemaining <= 0 || puzzleCompleted;
+                undoBtn.disabled = connectedDotsCount === 0 || puzzleCompleted;
+            }
+
+            // =========================================================================
+            // COORDINATE TRANSFORMATIONS & RENDER PIPELINE
+            // =========================================================================
+            function transformPoint(pt) {
+                // Scale SVG source coordinates (400x400) to Canvas & apply zoom/pan
+                const scale = (canvasSize / 400) * zoomLevel;
+                return {
+                    x: (pt.x * scale) + panOffset.x,
+                    y: (pt.y * scale) + panOffset.y
+                };
+            }
+
+            function render() {
+                ctx.clearRect(0, 0, canvasSize, canvasSize);
+
+                if (currentTab === 'DotsBoxes') {
+                    renderDotsBoxes();
+                } else {
+                    renderDotToDot();
+                }
+            }
+
+            function renderDotsBoxes() {
+                const isDark = document.documentElement.classList.contains('dark');
+                const dotColor = isDark ? '#94a3b8' : '#64748b';
+                const emptyLineColor = isDark ? 'rgba(51, 65, 85, 0.4)' : 'rgba(226, 232, 240, 0.8)';
+
+                const max = numDots - 1;
+
+                // 1. Draw Boxes
+                for (let r = 0; r < max; r++) {
+                    for (let c = 0; c < max; c++) {
+                        const box = boxes[r][c];
+                        if (box.owner !== 0) {
+                            if (box.scale < 1) box.scale = Math.min(1, box.scale + 0.1);
+
+                            const x = padding + c * cellSize;
+                            const y = padding + r * cellSize;
+                            const pColor = players[box.owner].color;
+
+                            ctx.save();
+                            ctx.fillStyle = hexToRgba(pColor, 0.25);
+                            ctx.strokeStyle = hexToRgba(pColor, 0.6);
+                            ctx.lineWidth = 2;
+
+                            const fillSize = cellSize * box.scale;
+                            const offset = (cellSize - fillSize) / 2;
+
+                            ctx.beginPath();
+                            ctx.roundRect(x + offset + 3, y + offset + 3, fillSize - 6, fillSize - 6, 12);
+                            ctx.fill();
+                            ctx.stroke();
+
+                            if (box.scale >= 0.8) {
+                                ctx.fillStyle = pColor;
+                                ctx.font = `bold ${Math.max(12, cellSize * 0.3)}px Inter, sans-serif`;
+                                ctx.textAlign = 'center';
+                                ctx.textBaseline = 'middle';
+                                ctx.fillText(players[box.owner].name.charAt(0).toUpperCase(), x + cellSize / 2, y + cellSize / 2);
+                            }
+                            ctx.restore();
+                        }
+                    }
+                }
+
+                // 2. Unfilled Lines
+                for (let r = 0; r < numDots; r++) {
+                    for (let c = 0; c < numDots - 1; c++) {
+                        if (!hLines[r][c]) {
+                            const x1 = padding + c * cellSize;
+                            const y1 = padding + r * cellSize;
+                            drawSegment(x1, y1, x1 + cellSize, y1, emptyLineColor, 4, true);
+                        }
+                    }
+                }
+                for (let r = 0; r < numDots - 1; r++) {
+                    for (let c = 0; c < numDots; c++) {
+                        if (!vLines[r][c]) {
+                            const x1 = padding + c * cellSize;
+                            const y1 = padding + r * cellSize;
+                            drawSegment(x1, y1, x1, y1 + cellSize, emptyLineColor, 4, true);
+                        }
+                    }
+                }
+
+                // 3. Hover line
+                if (hoverLine && (gameMode !== 'AI' || currentPlayer === 1)) {
+                    const pColor = players[currentPlayer].color;
+                    const hoverColor = hexToRgba(pColor, 0.5);
+                    const { type, r, c } = hoverLine;
+
+                    if (type === 'H') {
+                        const x1 = padding + c * cellSize;
+                        const y1 = padding + r * cellSize;
+                        drawSegment(x1, y1, x1 + cellSize, y1, hoverColor, 6);
+                    } else {
+                        const x1 = padding + c * cellSize;
+                        const y1 = padding + r * cellSize;
+                        drawSegment(x1, y1, x1, y1 + cellSize, hoverColor, 6);
+                    }
+                }
+
+                // 4. Drawn Lines
+                for (let r = 0; r < numDots; r++) {
+                    for (let c = 0; c < numDots - 1; c++) {
+                        const owner = hLines[r][c];
+                        if (owner !== 0) {
+                            const x1 = padding + c * cellSize;
+                            const y1 = padding + r * cellSize;
+                            drawSegment(x1, y1, x1 + cellSize, y1, players[owner].color, 6);
+                        }
+                    }
+                }
+                for (let r = 0; r < numDots - 1; r++) {
+                    for (let c = 0; c < numDots; c++) {
+                        const owner = vLines[r][c];
+                        if (owner !== 0) {
+                            const x1 = padding + c * cellSize;
+                            const y1 = padding + r * cellSize;
+                            drawSegment(x1, y1, x1, y1 + cellSize, players[owner].color, 6);
+                        }
+                    }
+                }
+
+                // 5. Grid Dots
+                for (let r = 0; r < numDots; r++) {
+                    for (let c = 0; c < numDots; c++) {
+                        const x = padding + c * cellSize;
+                        const y = padding + r * cellSize;
+
+                        ctx.beginPath();
+                        ctx.arc(x, y, dotRadius, 0, Math.PI * 2);
+                        ctx.fillStyle = dotColor;
+                        ctx.fill();
+                    }
+                }
+            }
+
+            function renderDotToDot() {
+                const puzzle = PICTURE_PUZZLES[currentPuzzleIndex];
+                const isDark = document.documentElement.classList.contains('dark');
+
+                // 1. Draw Revealed Background Fill if Finished
+                if (puzzleCompleted) {
+                    ctx.save();
+                    ctx.beginPath();
+                    puzzle.points.forEach((pt, i) => {
+                        const tPt = transformPoint(pt);
+                        if (i === 0) ctx.moveTo(tPt.x, tPt.y);
+                        else ctx.lineTo(tPt.x, tPt.y);
+                    });
+                    ctx.closePath();
+                    ctx.fillStyle = puzzle.fillColor;
+                    ctx.fill();
+                    ctx.restore();
+                }
+
+                // 2. Connected Path Lines
+                if (connectedDotsCount > 0) {
+                    ctx.save();
+                    ctx.beginPath();
+                    for (let i = 0; i < connectedDotsCount; i++) {
+                        const tPt = transformPoint(puzzle.points[i]);
+                        if (i === 0) ctx.moveTo(tPt.x, tPt.y);
+                        else ctx.lineTo(tPt.x, tPt.y);
+                    }
+                    if (puzzleCompleted) ctx.closePath();
+
+                    ctx.strokeStyle = puzzle.strokeColor;
+                    ctx.lineWidth = 4 * zoomLevel;
+                    ctx.lineCap = 'round';
+                    ctx.lineJoin = 'round';
+                    ctx.stroke();
+                    ctx.restore();
+                }
+
+                // 3. Draw Dots & Numbers
+                puzzle.points.forEach((pt, i) => {
+                    const tPt = transformPoint(pt);
+                    const isConnected = i < connectedDotsCount;
+                    const isNextTarget = i === connectedDotsCount && !puzzleCompleted;
+
+                    ctx.save();
+
+                    // Hint aura highlight
+                    if (activeHintDot === i && isNextTarget) {
+                        ctx.beginPath();
+                        ctx.arc(tPt.x, tPt.y, 18 * zoomLevel, 0, Math.PI * 2);
+                        ctx.fillStyle = 'rgba(245, 158, 11, 0.4)';
+                        ctx.fill();
+                    }
+
+                    // Dot Circle
+                    ctx.beginPath();
+                    const radius = isNextTarget ? 8 * zoomLevel : (isConnected ? 5 * zoomLevel : 6 * zoomLevel);
+                    ctx.arc(tPt.x, tPt.y, radius, 0, Math.PI * 2);
+
+                    if (isConnected) {
+                        ctx.fillStyle = puzzle.strokeColor;
+                    } else if (isNextTarget) {
+                        ctx.fillStyle = '#0ea5e9'; // Bright Sky Blue
+                    } else {
+                        ctx.fillStyle = isDark ? '#64748b' : '#94a3b8';
+                    }
+                    ctx.fill();
+
+                    // Number Label
+                    ctx.fillStyle = isNextTarget ? '#0ea5e9' : (isDark ? '#e2e8f0' : '#334155');
+                    ctx.font = `bold ${Math.max(10, 12 * zoomLevel)}px Inter, sans-serif`;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(i + 1, tPt.x + 14 * zoomLevel, tPt.y - 12 * zoomLevel);
+
+                    ctx.restore();
+                });
+            }
+
+            function drawSegment(x1, y1, x2, y2, color, width = 4, isDashed = false) {
+                ctx.save();
+                ctx.beginPath();
+                ctx.moveTo(x1, y1);
+                ctx.lineTo(x2, y2);
+                ctx.strokeStyle = color;
+                ctx.lineWidth = width;
+                ctx.lineCap = 'round';
+                if (isDashed) ctx.setLineDash([2, 6]);
+                ctx.stroke();
+                ctx.restore();
+            }
+
+            function renderAnimation() {
+                render();
+                const needsNext = boxes.some(row => row.some(b => b.owner !== 0 && b.scale < 1));
+                if (needsNext) requestAnimationFrame(renderAnimation);
+            }
+
+            function hexToRgba(hex, alpha) {
+                let c = hex.replace('#', '');
+                if (c.length === 3) c = c.split('').map(x => x + x).join('');
+                const num = parseInt(c, 16);
+                return `rgba(${(num >> 16) & 255}, ${(num >> 8) & 255}, ${num & 255}, ${alpha})`;
+            }
+
+            function updateUI() {
+                nameP1.innerText = players[1].name;
+                nameP2.innerText = players[2].name;
+                badgeP1.style.backgroundColor = players[1].color;
+                badgeP2.style.backgroundColor = players[2].color;
+
+                scoreP1.innerText = players[1].score;
+                scoreP2.innerText = players[2].score;
+
+                const totalBoxes = (numDots - 1) ** 2;
+                const remaining = totalBoxes - (players[1].score + players[2].score);
+                remainingBoxesText.innerText = `${remaining} box${remaining === 1 ? '' : 'es'} remaining`;
+
+                if (currentPlayer === 1) {
+                    turnText.innerText = players[1].name;
+                    turnText.style.color = players[1].color;
+                    turnBadge.style.color = players[1].color;
+
+                    cardP1.style.borderColor = players[1].color;
+                    cardP1.classList.add('active-glow-p1');
+                    cardP2.style.borderColor = 'transparent';
+                    cardP2.classList.remove('active-glow-p2');
+                } else {
+                    turnText.innerText = players[2].name;
+                    turnText.style.color = players[2].color;
+                    turnBadge.style.color = players[2].color;
+
+                    cardP2.style.borderColor = players[2].color;
+                    cardP2.classList.add('active-glow-p2');
+                    cardP1.style.borderColor = 'transparent';
+                    cardP1.classList.remove('active-glow-p1');
+                }
+
+                undoBtn.disabled = moveHistory.length === 0 || (gameMode === 'AI' && currentPlayer === 2);
+            }
+
+            // =========================================================================
+            // EVENT LISTENERS & INPUT HANDLING
+            // =========================================================================
+            canvas.addEventListener('mousemove', (e) => {
+                const rect = canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+
+                if (currentTab === 'DotsBoxes') {
+                    // Closest Line Hover Detection
+                    let closest = null;
+                    let minDist = cellSize * 0.35;
+
+                    for (let r = 0; r < numDots; r++) {
+                        for (let c = 0; c < numDots - 1; c++) {
+                            const x1 = padding + c * cellSize, y1 = padding + r * cellSize;
+                            const dist = pointToSegmentDist(x, y, x1, y1, x1 + cellSize, y1);
+                            if (dist < minDist) { minDist = dist; closest = { type: 'H', r, c }; }
+                        }
+                    }
+                    for (let r = 0; r < numDots - 1; r++) {
+                        for (let c = 0; c < numDots; c++) {
+                            const x1 = padding + c * cellSize, y1 = padding + r * cellSize;
+                            const dist = pointToSegmentDist(x, y, x1, y1, x1, y1 + cellSize);
+                            if (dist < minDist) { minDist = dist; closest = { type: 'V', r, c }; }
+                        }
+                    }
+
+                    if (closest && (closest.type === 'H' ? !hLines[closest.r][closest.c] : !vLines[closest.r][closest.c])) {
+                        if (!hoverLine || hoverLine.type !== closest.type || hoverLine.r !== closest.r || hoverLine.c !== closest.c) {
+                            hoverLine = closest;
+                            render();
+                        }
+                    } else if (hoverLine) {
+                        hoverLine = null;
+                        render();
+                    }
+                } else if (isPanning) {
+                    panOffset.x = x - startPan.x;
+                    panOffset.y = y - startPan.y;
+                    render();
+                }
+            });
+
+            function pointToSegmentDist(px, py, x1, y1, x2, y2) {
+                const l2 = (x2 - x1) ** 2 + (y2 - y1) ** 2;
+                if (l2 === 0) return Math.hypot(px - x1, py - y1);
+                let t = Math.max(0, Math.min(1, ((px - x1) * (x2 - x1) + (py - y1) * (y2 - y1)) / l2));
+                return Math.hypot(px - (x1 + t * (x2 - x1)), py - (y1 + t * (y2 - y1)));
+            }
+
+            canvas.addEventListener('mousedown', (e) => {
+                if (currentTab === 'DotToDot' && e.button === 1) { // Middle click pan
+                    isPanning = true;
+                    startPan = { x: e.clientX - panOffset.x, y: e.clientY - panOffset.y };
+                }
+            });
+
+            window.addEventListener('mouseup', () => { isPanning = false; });
+
+            canvas.addEventListener('click', (e) => {
+                const rect = canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+
+                if (currentTab === 'DotsBoxes') {
+                    if (gameMode === 'AI' && currentPlayer === 2) return;
+                    if (hoverLine) makeMove(hoverLine.type, hoverLine.r, hoverLine.c);
+                } else {
+                    handleDotToDotClick(x, y);
+                }
+            });
+
+            canvas.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                const touch = e.touches[0];
+                const rect = canvas.getBoundingClientRect();
+                const x = touch.clientX - rect.left;
+                const y = touch.clientY - rect.top;
+
+                if (currentTab === 'DotsBoxes') {
+                    // Find hover and make move
+                    let closest = null;
+                    let minDist = cellSize * 0.45;
+                    for (let r = 0; r < numDots; r++) {
+                        for (let c = 0; c < numDots - 1; c++) {
+                            const x1 = padding + c * cellSize, y1 = padding + r * cellSize;
+                            const dist = pointToSegmentDist(x, y, x1, y1, x1 + cellSize, y1);
+                            if (dist < minDist) { minDist = dist; closest = { type: 'H', r, c }; }
+                        }
+                    }
+                    for (let r = 0; r < numDots - 1; r++) {
+                        for (let c = 0; c < numDots; c++) {
+                            const x1 = padding + c * cellSize, y1 = padding + r * cellSize;
+                            const dist = pointToSegmentDist(x, y, x1, y1, x1, y1 + cellSize);
+                            if (dist < minDist) { minDist = dist; closest = { type: 'V', r, c }; }
+                        }
+                    }
+                    if (closest) makeMove(closest.type, closest.r, closest.c);
+                } else {
+                    handleDotToDotClick(x, y);
+                }
+            }, { passive: false });
+
+            // Tab Switching Listeners
+            tabDotsBoxes.addEventListener('click', () => switchTab('DotsBoxes'));
+            tabDotToDot.addEventListener('click', () => switchTab('DotToDot'));
+
+            // Mode Selector
+            modePvPBtn.addEventListener('click', () => {
+                gameMode = 'PvP';
+                modePvPBtn.className = "px-3 py-1.5 rounded-lg transition bg-sky-600 text-white shadow-sm flex items-center gap-1.5 font-bold";
+                modeAIBtn.className = "px-3 py-1.5 rounded-lg transition text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white flex items-center gap-1.5 font-bold";
+                aiDiffGroup.classList.add('hidden');
+                players[2].name = inputP2.value || 'Player 2';
+                initDotsBoxes();
+            });
+
+            modeAIBtn.addEventListener('click', () => {
+                gameMode = 'AI';
+                modeAIBtn.className = "px-3 py-1.5 rounded-lg transition bg-rose-600 text-white shadow-sm flex items-center gap-1.5 font-bold";
+                modePvPBtn.className = "px-3 py-1.5 rounded-lg transition text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white flex items-center gap-1.5 font-bold";
+                aiDiffGroup.classList.remove('hidden');
+                players[2].name = `AI (${aiDifficulty})`;
+                initDotsBoxes();
+            });
+
+            // AI Difficulty Selector
+            [
+                { btn: diffEasyBtn, level: 'Easy' },
+                { btn: diffMediumBtn, level: 'Medium' },
+                { btn: diffHardBtn, level: 'Hard' }
+            ].forEach(({ btn, level }) => {
+                btn.addEventListener('click', () => {
+                    aiDifficulty = level;
+                    diffEasyBtn.className = "px-2.5 py-1 rounded-lg text-slate-600 dark:text-slate-400 hover:text-white transition";
+                    diffMediumBtn.className = "px-2.5 py-1 rounded-lg text-slate-600 dark:text-slate-400 hover:text-white transition";
+                    diffHardBtn.className = "px-2.5 py-1 rounded-lg text-slate-600 dark:text-slate-400 hover:text-white transition";
+                    btn.className = "px-2.5 py-1 bg-purple-600 text-white rounded-lg transition font-bold shadow-sm";
+                    if (gameMode === 'AI') players[2].name = `AI (${aiDifficulty})`;
+                    initDotsBoxes();
+                });
+            });
+
+            // Grid Size Selectors
+            const gridBtns = document.querySelectorAll('#gridSizeSelectors button');
+            gridBtns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    gridBtns.forEach(b => b.className = "px-2.5 py-1 rounded-lg text-slate-600 dark:text-slate-400 hover:text-white transition");
+                    btn.className = "px-2.5 py-1 bg-sky-600 text-white rounded-lg shadow-sm transition font-bold";
+                    numDots = parseInt(btn.dataset.grid);
+                    initDotsBoxes();
+                });
+            });
+
+            // Picture Puzzle Select & Helpers
+            puzzleSelect.addEventListener('change', (e) => {
+                currentPuzzleIndex = parseInt(e.target.value);
+                initDotToDot();
+            });
+
+            hintBtn.addEventListener('click', () => {
+                if (hintsRemaining > 0 && !puzzleCompleted) {
+                    hintsRemaining--;
+                    activeHintDot = connectedDotsCount;
+                    updateDotToDotUI();
+                    render();
+                }
+            });
+
+            autoConnectBtn.addEventListener('click', () => {
+                autoSnap = !autoSnap;
+                autoSnapState.innerText = autoSnap ? 'ON' : 'OFF';
+                autoConnectBtn.classList.toggle('text-sky-500', autoSnap);
+            });
+
+            // Zoom Control Listeners
+            zoomInBtn.addEventListener('click', () => {
+                zoomLevel = Math.min(2.5, zoomLevel + 0.2);
+                zoomLevelText.innerText = `${Math.round(zoomLevel * 100)}%`;
+                render();
+            });
+            zoomOutBtn.addEventListener('click', () => {
+                zoomLevel = Math.max(0.6, zoomLevel - 0.2);
+                zoomLevelText.innerText = `${Math.round(zoomLevel * 100)}%`;
+                render();
+            });
+            zoomResetBtn.addEventListener('click', () => {
+                zoomLevel = 1.0;
+                panOffset = { x: 0, y: 0 };
+                zoomLevelText.innerText = '100%';
+                render();
+            });
+
+            // Sound & Theme Toggle
+            soundToggleBtn.addEventListener('click', () => {
+                soundEnabled = !soundEnabled;
+                soundIcon.className = soundEnabled ? 'fa-solid fa-volume-high' : 'fa-solid fa-volume-xmark text-slate-400';
+            });
+
+            themeToggleBtn.addEventListener('click', () => {
+                const isDark = document.documentElement.classList.toggle('dark');
+                themeIcon.className = isDark ? 'fa-solid fa-moon' : 'fa-solid fa-sun text-amber-500';
+                render();
+            });
+
+            // Settings Modal
+            settingsModalBtn.addEventListener('click', () => {
+                inputP1.value = players[1].name;
+                inputP2.value = players[2].name;
+                colorP1.value = players[1].color;
+                colorP2.value = players[2].color;
+
+                settingsModal.classList.remove('opacity-0', 'pointer-events-none');
+                settingsContent.classList.remove('scale-95');
+                settingsContent.classList.add('scale-100');
+            });
+
+            closeSettingsBtn.addEventListener('click', () => {
+                settingsModal.classList.add('opacity-0', 'pointer-events-none');
+                settingsContent.classList.remove('scale-100');
+                settingsContent.classList.add('scale-95');
+            });
+
+            saveSettingsBtn.addEventListener('click', () => {
+                players[1].name = inputP1.value.trim() || 'Player 1';
+                players[1].color = colorP1.value;
+
+                if (gameMode === 'PvP') {
+                    players[2].name = inputP2.value.trim() || 'Player 2';
+                }
+                players[2].color = colorP2.value;
+
+                closeSettingsBtn.click();
+                updateUI();
+                render();
+            });
+
+            undoBtn.addEventListener('click', () => {
+                if (currentTab === 'DotsBoxes') {
+                    undoDotsBoxesMove();
+                } else if (connectedDotsCount > 0 && !puzzleCompleted) {
+                    connectedDotsCount--;
+                    playSound('undo');
+                    updateDotToDotUI();
+                    render();
+                }
+            });
+
+            restartBtn.addEventListener('click', () => {
+                if (currentTab === 'DotsBoxes') initDotsBoxes();
+                else initDotToDot();
+            });
+
+            modalPlayAgainBtn.addEventListener('click', () => {
+                resultModal.classList.add('opacity-0', 'pointer-events-none');
+                resultContent.classList.remove('scale-100');
+                resultContent.classList.add('scale-90');
+
+                if (currentTab === 'DotsBoxes') initDotsBoxes();
+                else initDotToDot();
+            });
+
+            window.addEventListener('resize', resizeCanvas);
+
+            // App Startup Initialization
+            initPuzzleOptions();
+            switchTab('DotsBoxes');
+        });
+    </script>
+</body>
+</html>
